@@ -71,20 +71,29 @@ async function setupDatabase() {
       console.log('✅ Admin user ready — username: admin | password: 1234');
     }
 
-    // ── Seed emergency contacts ────────────────────────────────────────
-    console.log('📞 Seeding default emergency contacts...');
-    const { error: contactsErr } = await supabase
+    // ── Seed emergency contacts (only if table is empty) ──────────────────
+    console.log('📞 Checking emergency contacts...');
+    const { data: existingContacts, error: checkErr } = await supabase
       .from('emergency_contacts')
-      .upsert([
-        { name: 'Emergency Services (National)', phone: '112', relationship: 'Official' },
-        { name: 'Emergency Contact 1 (Father)', phone: '+919876543210', relationship: 'Family' },
-        { name: 'Emergency Contact 2 (Sister)', phone: '+918765432109', relationship: 'Family' }
-      ], { ignoreDuplicates: true });
+      .select('id')
+      .limit(1);
 
-    if (contactsErr) {
-      console.warn('⚠️  Could not seed contacts:', contactsErr.message);
+    if (!checkErr && (!existingContacts || existingContacts.length === 0)) {
+      const { error: contactsErr } = await supabase
+        .from('emergency_contacts')
+        .insert([
+          { name: 'Emergency Services (National)', phone: '112', relationship: 'Official' },
+          { name: 'Emergency Contact 1 (Father)', phone: '+919876543210', relationship: 'Family' },
+          { name: 'Emergency Contact 2 (Sister)', phone: '+918765432109', relationship: 'Family' }
+        ]);
+
+      if (contactsErr) {
+        console.warn('⚠️  Could not seed contacts:', contactsErr.message);
+      } else {
+        console.log('✅ Default emergency contacts ready');
+      }
     } else {
-      console.log('✅ Default emergency contacts ready');
+      console.log('✅ Emergency contacts already exist — skipped seeding');
     }
 
     console.log('\n✅ Database setup complete!');
