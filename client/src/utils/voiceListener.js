@@ -3,9 +3,11 @@
 
 let recognitionInstance = null;
 let isListeningActive = false;
+let hasTerminalError = false;
 
 export function startVoiceRecognition(onTrigger, onStatusChange) {
   if (isListeningActive) return;
+  hasTerminalError = false;
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   
@@ -32,13 +34,16 @@ export function startVoiceRecognition(onTrigger, onStatusChange) {
       if (event.error !== 'no-speech') {
         console.error("🎙️ Voice Recognition error:", event.error);
         if (onStatusChange) onStatusChange('error');
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'language-not-supported') {
+          hasTerminalError = true;
+        }
       }
     };
 
     recognitionInstance.onend = () => {
       isListeningActive = false;
-      // Auto-restart if we want background tracking active
-      if (recognitionInstance) {
+      // Auto-restart if we want background tracking active and no terminal error occurred
+      if (recognitionInstance && !hasTerminalError) {
         try {
           recognitionInstance.start();
         } catch (e) {
