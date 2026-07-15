@@ -166,7 +166,7 @@ function startEmergencyRecording({ stream, onTrigger, username, lat, lng }) {
 
 async function uploadRecording({ base64Audio, username, lat, lng, onTrigger }) {
   try {
-    const res = await fetch('http://localhost:5000/api/upload-recording', {
+    const res = await fetch('/api/upload-recording', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

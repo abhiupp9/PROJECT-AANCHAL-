@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Eye, EyeOff, Lock, User, Phone, KeyRound, ArrowLeft, RefreshCw, CheckCircle, Send } from 'lucide-react';
 import AcronymInfo from './AcronymInfo';
+import API_BASE_URL from '../config';
 
 // ─── Screens ──────────────────────────────────────────────────────────────────
 // 'signin' | 'signup' | 'forgot_phone' | 'forgot_otp' | 'forgot_newpass' | 'forgot_success'
@@ -55,7 +56,7 @@ export default function Auth({ onSignIn }) {
     if (!username.trim() || !password) { setError('Please fill in all fields.'); return; }
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/login', {
+      const res = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: username, password })
@@ -75,7 +76,7 @@ export default function Auth({ onSignIn }) {
     if (password.length < 4) { setError('Password must be at least 4 characters.'); return; }
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/register', {
+      const res = await fetch(`${API_BASE_URL}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, phone, password })
@@ -94,7 +95,7 @@ export default function Auth({ onSignIn }) {
     if (!fpPhone.trim()) { setError('Please enter your registered phone number.'); return; }
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/forgot-password', {
+      const res = await fetch(`${API_BASE_URL}/api/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fpPhone })
@@ -116,7 +117,7 @@ export default function Auth({ onSignIn }) {
     if (fpOtp.length !== 6) { setError('Enter the 6-digit OTP.'); return; }
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/verify-otp', {
+      const res = await fetch(`${API_BASE_URL}/api/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fpPhone, otp: fpOtp })
@@ -138,7 +139,7 @@ export default function Auth({ onSignIn }) {
     if (fpNewPass.length < 4) { setError('Password must be at least 4 characters.'); return; }
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/reset-password', {
+      const res = await fetch(`${API_BASE_URL}/api/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fpPhone, otp: fpVerifiedOtp, newPassword: fpNewPass })
@@ -156,7 +157,7 @@ export default function Auth({ onSignIn }) {
     clearFeedback();
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/forgot-password', {
+      const res = await fetch(`${API_BASE_URL}/api/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: fpPhone })

@@ -27,6 +27,7 @@ import CryptoJS from 'crypto-js';
 import { startVoiceRecognition, stopVoiceRecognition } from '../utils/voiceListener';
 import { startHmmDetection, stopHmmDetection, isHmmDetectionActive } from '../utils/hmmDetector';
 import AcronymInfo from './AcronymInfo';
+import API_BASE_URL from '../config';
 
 // Fallback Leaflet import if L is loaded from CDN/module
 // We'll use window.L since we loaded Leaflet's assets
@@ -143,7 +144,7 @@ export default function Dashboard({ username, onSignOut }) {
 
   const fetchContacts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/contacts');
+      const res = await fetch(`${API_BASE_URL}/api/contacts`);
       const data = await res.json();
       setContacts(data);
     } catch (e) {
@@ -154,7 +155,7 @@ export default function Dashboard({ username, onSignOut }) {
 
   const fetchCorridors = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/safe-corridors');
+      const res = await fetch(`${API_BASE_URL}/api/safe-corridors`);
       const data = await res.json();
       setSafeCorridors(data.corridors || []);
       setSecurityElements(data.securityElements || []);
@@ -169,7 +170,7 @@ export default function Dashboard({ username, onSignOut }) {
     if (!newContactName || !newContactPhone) return;
 
     try {
-      const res = await fetch('http://localhost:5000/api/contacts', {
+      const res = await fetch(`${API_BASE_URL}/api/contacts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -191,7 +192,7 @@ export default function Dashboard({ username, onSignOut }) {
 
   const handleDeleteContact = async (id, name) => {
     try {
-      await fetch(`http://localhost:5000/api/contacts/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE_URL}/api/contacts/${id}`, { method: 'DELETE' });
       setContacts(prev => prev.filter(c => c.id !== id));
       addLog(`Removed emergency contact: ${name}`);
     } catch (e) {
@@ -609,7 +610,7 @@ export default function Dashboard({ username, onSignOut }) {
 
     try {
       addLog("📡 Contacting secure cloud relay server...");
-      const res = await fetch('http://localhost:5000/api/alert', {
+      const res = await fetch(`${API_BASE_URL}/api/alert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
