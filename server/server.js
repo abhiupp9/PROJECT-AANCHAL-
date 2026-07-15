@@ -9,8 +9,26 @@ const supabase = require('./supabaseClient');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json());
+// CORS — allow GitHub Pages frontend + localhost dev
+const allowedOrigins = [
+  'https://abhiupp9.github.io',   // GitHub Pages
+  'http://localhost:5173',          // Vite dev
+  'http://localhost:3000',
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // allow requests with no origin (mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.some(o => origin.startsWith(o))) {
+      return callback(null, true);
+    }
+    return callback(null, true); // allow all for now (open API)
+  },
+  credentials: true
+}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // In-memory data store for emergency contacts
 let emergencyContacts = [

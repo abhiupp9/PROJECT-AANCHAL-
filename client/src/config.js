@@ -1,6 +1,7 @@
 // Central API configuration
-// In development: Vite proxy forwards /api/* to http://localhost:5000
-// In production: change API_BASE_URL to your deployed backend URL
+// Development: Vite proxy forwards /api/* → http://localhost:5000
+// Production:  Set VITE_API_URL in client/.env.production to your deployed backend URL
+//              e.g. VITE_API_URL=https://your-backend.railway.app
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 

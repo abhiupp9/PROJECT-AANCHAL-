@@ -35,6 +35,10 @@ jobs:
       - name: Build Vite React app
         run: npm run build
         working-directory: ./client
+        env:
+          # Set this secret in GitHub: Settings → Secrets → VITE_API_URL
+          # Value: your Railway/Render backend URL e.g. https://aanchal-backend.railway.app
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
