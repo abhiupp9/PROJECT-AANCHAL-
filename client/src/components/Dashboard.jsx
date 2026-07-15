@@ -1439,7 +1439,7 @@ export default function Dashboard({ username, onSignOut }) {
                           </div>
                           <div style={styles.detailsRow}>
                             <span style={styles.detailsLabel}>Blood Group:</span>
-                            <span style={styles.detailsVal} style={{color: '#f43f5e', fontWeight: 'bold'}}>{decryptedForm.bloodGroup}</span>
+                            <span style={{...styles.detailsVal, color: '#f43f5e', fontWeight: 'bold'}}>{decryptedForm.bloodGroup}</span>
                           </div>
                           <div style={styles.detailsRow}>
                             <span style={styles.detailsLabel}>Allergies:</span>
@@ -1559,7 +1559,7 @@ export default function Dashboard({ username, onSignOut }) {
                         <span style={styles.hotlineTag}>Legal & Support</span>
                         <h4 style={styles.hotlineName}>NCW Safety Helpline</h4>
                       </div>
-                      <a href="tel:7827170170" style={styles.phoneCircle} style={{...styles.phoneCircle, backgroundColor: 'rgba(168, 85, 247, 0.2)', color: '#a855f7'}}>
+                      <a href="tel:7827170170" style={{...styles.phoneCircle, backgroundColor: 'rgba(168, 85, 247, 0.2)', color: '#a855f7'}}>
                         <Phone size={18} />
                       </a>
                     </div>
@@ -1575,7 +1575,7 @@ export default function Dashboard({ username, onSignOut }) {
                         <span style={styles.hotlineTag}>Immediate Rescue</span>
                         <h4 style={styles.hotlineName}>Women Helpline (Sarkari)</h4>
                       </div>
-                      <a href="tel:1091" style={styles.phoneCircle} style={{...styles.phoneCircle, backgroundColor: 'rgba(244, 63, 94, 0.2)', color: '#f43f5e'}}>
+                      <a href="tel:1091" style={{...styles.phoneCircle, backgroundColor: 'rgba(244, 63, 94, 0.2)', color: '#f43f5e'}}>
                         <Phone size={18} />
                       </a>
                     </div>
