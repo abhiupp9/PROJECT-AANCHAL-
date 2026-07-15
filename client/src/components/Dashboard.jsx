@@ -18,7 +18,10 @@ import {
   Trash2,
   AlertCircle,
   Radio,
-  Video
+  Video,
+  LogOut,
+  UserCheck,
+  Activity
 } from 'lucide-react';
 import CryptoJS from 'crypto-js';
 import { startVoiceRecognition, stopVoiceRecognition } from '../utils/voiceListener';
@@ -34,6 +37,28 @@ export default function Dashboard({ username, onSignOut }) {
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
   const [gpsLocation, setGpsLocation] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
+
+  // Volunteer & Real-time GPS Tracker state
+  const [isRegisteredVolunteer, setIsRegisteredVolunteer] = useState(false);
+  const [nearbyVolunteers, setNearbyVolunteers] = useState([
+    { id: 1, name: 'Rohit Sharma (Specialist)', phone: '+91 9911223344', relationship: 'Official Rescue', status: 'Active', distance: 320, lat: 28.6325, lng: 77.2205 },
+    { id: 2, name: 'Priya Patel (Safety Volunteer)', phone: '+91 9876543211', relationship: 'Citizen Guard', status: 'Active', distance: 480, lat: 28.6285, lng: 77.2145 },
+    { id: 3, name: 'Vikram Singh (First Aid)', phone: '+91 9123456789', relationship: 'Neighbor Node', status: 'Active', distance: 650, lat: 28.6255, lng: 77.2185 }
+  ]);
+  const [volunteerRequestStatus, setVolunteerRequestStatus] = useState('idle'); // idle | searching | connected | arrived
+  const [escortVolunteer, setEscortVolunteer] = useState(null);
+  const [watchId, setWatchId] = useState(null);
+  const [isWalking, setIsWalking] = useState(false);
+
+  const volunteerMapRef = useRef(null);
+  const leafletVolunteerMapInstance = useRef(null);
+  const volunteerUserMarkerRef = useRef(null);
+  const volMarkersRef = useRef({});
+  const escortMarkerRef = useRef(null);
+  const escortPathPolylineRef = useRef(null);
+
+  const walkIntervalRef = useRef(null);
+  const watchIdRef = useRef(null);
   
   // Voice Listener State
   const [isVoiceListening, setIsVoiceListening] = useState(false);
@@ -111,6 +136,8 @@ export default function Dashboard({ username, onSignOut }) {
       stopVoiceRecognition();
       stopHmmDetection();
       if (hmmCountdownRef.current) clearInterval(hmmCountdownRef.current);
+      if (walkIntervalRef.current) clearInterval(walkIntervalRef.current);
+      if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
     };
   }, []);
 
@@ -169,6 +196,298 @@ export default function Dashboard({ username, onSignOut }) {
       addLog(`Removed emergency contact: ${name}`);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Live GPS Distance calculation (Haversine Formula)
+  const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371e3; // metres
+    const phi1 = lat1 * Math.PI/180;
+    const phi2 = lat2 * Math.PI/180;
+    const deltaPhi = (lat2-lat1) * Math.PI/180;
+    const deltaLambda = (lon2-lon1) * Math.PI/180;
+
+    const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c; // in metres
+  };
+
+  const recalculateVolunteerDistances = (userLat, userLng) => {
+    setNearbyVolunteers(prev => 
+      prev.map(vol => {
+        const dist = Math.round(getHaversineDistance(userLat, userLng, vol.lat, vol.lng));
+        return { ...vol, distance: dist };
+      })
+    );
+  };
+
+  // Real-time GPS Location tracking via browser Geolocation watchPosition
+  const startRealTimeTracking = () => {
+    if (!navigator.geolocation) {
+      addLog("⚠️ Geolocation is not supported by your browser.");
+      return;
+    }
+    
+    if (watchId) {
+      navigator.geolocation.clearWatch(watchId);
+      watchIdRef.current = null;
+      setWatchId(null);
+      addLog("📍 Real-time GPS satellite watch DEACTIVATED.");
+      return;
+    }
+
+    addLog("📍 Real-time GPS satellite watch ACTIVE. Tracking movements...");
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        setGpsLocation(loc);
+        addLog(`📍 GPS position updated: Lat ${loc.lat.toFixed(5)}, Lng ${loc.lng.toFixed(5)}`);
+        
+        // Update both map markers in real-time
+        if (leafletMapInstance.current) {
+          leafletMapInstance.current.panTo([loc.lat, loc.lng]);
+          if (userMarkerRef.current) userMarkerRef.current.setLatLng([loc.lat, loc.lng]);
+        }
+        if (leafletVolunteerMapInstance.current) {
+          leafletVolunteerMapInstance.current.panTo([loc.lat, loc.lng]);
+          if (volunteerUserMarkerRef.current) volunteerUserMarkerRef.current.setLatLng([loc.lat, loc.lng]);
+        }
+        
+        recalculateVolunteerDistances(loc.lat, loc.lng);
+      },
+      (err) => {
+        addLog(`⚠️ Geolocation watch failed: ${err.message}`);
+      },
+      { enableHighAccuracy: true }
+    );
+    watchIdRef.current = id;
+    setWatchId(id);
+  };
+
+  // Walking simulation for desktop environments to trace coordinates in real time
+  const startWalkingSimulation = () => {
+    if (isWalking) {
+      clearInterval(walkIntervalRef.current);
+      walkIntervalRef.current = null;
+      setIsWalking(false);
+      addLog("🧭 GPS walking simulation stopped.");
+      return;
+    }
+
+    setIsWalking(true);
+    addLog("🧭 GPS walking simulation active. User is moving in real-time...");
+    
+    let angle = 0;
+    const centerLat = gpsLocation?.lat || mapCenter.lat;
+    const centerLng = gpsLocation?.lng || mapCenter.lng;
+    
+    const id = setInterval(() => {
+      angle += 0.1; // walk step
+      const newLat = centerLat + Math.sin(angle) * 0.001;
+      const newLng = centerLng + Math.cos(angle) * 0.001;
+      
+      const newLoc = { lat: newLat, lng: newLng, accuracy: 5.0 };
+      setGpsLocation(newLoc);
+      
+      // Pan/Update markers
+      if (leafletMapInstance.current) {
+        leafletMapInstance.current.panTo([newLat, newLng]);
+        if (userMarkerRef.current) userMarkerRef.current.setLatLng([newLat, newLng]);
+      }
+      if (leafletVolunteerMapInstance.current) {
+        leafletVolunteerMapInstance.current.panTo([newLat, newLng]);
+        if (volunteerUserMarkerRef.current) volunteerUserMarkerRef.current.setLatLng([newLat, newLng]);
+      }
+      
+      recalculateVolunteerDistances(newLat, newLng);
+    }, 1500);
+
+    walkIntervalRef.current = id;
+    setIsWalking(true);
+  };
+
+  // Dispatch nearest safety volunteer towards user coordinate
+  const requestVolunteerEscort = () => {
+    if (volunteerRequestStatus !== 'idle') return;
+
+    setVolunteerRequestStatus('searching');
+    addLog("🔍 Searching for active safety volunteers in your 1km radius...");
+
+    setTimeout(() => {
+      // Find the nearest volunteer
+      let nearest = nearbyVolunteers[0];
+      nearbyVolunteers.forEach(v => {
+        if (v.distance < nearest.distance) nearest = v;
+      });
+
+      setVolunteerRequestStatus('connected');
+      setEscortVolunteer(nearest);
+      addLog(`🤝 Connection established! Safety responder ${nearest.name} is dispatched to your coordinates.`);
+
+      // Simulate movement of volunteer towards the user
+      const userLat = gpsLocation?.lat || mapCenter.lat;
+      const userLng = gpsLocation?.lng || mapCenter.lng;
+
+      const startLat = nearest.lat;
+      const startLng = nearest.lng;
+
+      let step = 0;
+      const totalSteps = 10;
+      
+      const moveInterval = setInterval(() => {
+        step++;
+        const ratio = step / totalSteps;
+        const currentLat = startLat + (userLat - startLat) * ratio;
+        const currentLng = startLng + (userLng - startLng) * ratio;
+
+        // Update coordinate
+        setNearbyVolunteers(prev => 
+          prev.map(v => v.id === nearest.id ? { ...v, lat: currentLat, lng: currentLng } : v)
+        );
+
+        // Update volunteer marker on map
+        if (leafletVolunteerMapInstance.current && escortMarkerRef.current) {
+          escortMarkerRef.current.setLatLng([currentLat, currentLng]);
+          
+          // Re-draw path line connecting volunteer to user
+          if (escortPathPolylineRef.current) {
+            escortPathPolylineRef.current.setLatLngs([[userLat, userLng], [currentLat, currentLng]]);
+          } else {
+            const L = getL();
+            if (L) {
+              escortPathPolylineRef.current = L.polyline([[userLat, userLng], [currentLat, currentLng]], {
+                color: '#a855f7',
+                weight: 4,
+                dashArray: '5, 10'
+              }).addTo(leafletVolunteerMapInstance.current);
+            }
+          }
+        }
+
+        // Recalculate distance
+        const dist = Math.round(getHaversineDistance(userLat, userLng, currentLat, currentLng));
+        setNearbyVolunteers(prev => 
+          prev.map(v => v.id === nearest.id ? { ...v, distance: dist } : v)
+        );
+
+        addLog(`🏃 Responder ${nearest.name} is closing in. Distance: ${dist} meters.`);
+
+        if (step >= totalSteps) {
+          clearInterval(moveInterval);
+          setVolunteerRequestStatus('arrived');
+          addLog(`💚 Responder ${nearest.name} has arrived at your location. Safe escort secured!`);
+          
+          if (escortPathPolylineRef.current) {
+            escortPathPolylineRef.current.remove();
+            escortPathPolylineRef.current = null;
+          }
+        }
+      }, 1500);
+
+    }, 2000);
+  };
+
+  // Volunteer tab Leaflet Map handlers
+  useEffect(() => {
+    if (activeTab === 'volunteers') {
+      const timer = setTimeout(() => {
+        initVolunteerMap();
+      }, 100);
+      return () => {
+        clearTimeout(timer);
+        destroyVolunteerMap();
+      };
+    }
+  }, [activeTab, nearbyVolunteers]);
+
+  const initVolunteerMap = () => {
+    const L = getL();
+    if (!L || !volunteerMapRef.current) return;
+    if (leafletVolunteerMapInstance.current) {
+      const userLat = gpsLocation?.lat || mapCenter.lat;
+      const userLng = gpsLocation?.lng || mapCenter.lng;
+      if (volunteerUserMarkerRef.current) {
+        volunteerUserMarkerRef.current.setLatLng([userLat, userLng]);
+      }
+      return;
+    }
+
+    const userLat = gpsLocation?.lat || mapCenter.lat;
+    const userLng = gpsLocation?.lng || mapCenter.lng;
+
+    const map = L.map(volunteerMapRef.current, {
+      zoomControl: true,
+      attributionControl: false
+    }).setView([userLat, userLng], 15);
+
+    leafletVolunteerMapInstance.current = map;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
+
+    // Draw user position marker
+    const userMarkerHtml = `<div style="
+      background-color: #3b82f6; 
+      width: 18px; 
+      height: 18px; 
+      border-radius: 50%; 
+      border: 3px solid white;
+      box-shadow: 0 0 10px #3b82f6;
+    " class="secure-pulse"></div>`;
+
+    const userIcon = L.divIcon({
+      html: userMarkerHtml,
+      className: 'user-marker-vol',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+
+    volunteerUserMarkerRef.current = L.marker([userLat, userLng], { icon: userIcon }).addTo(map);
+
+    // Draw volunteer markers
+    nearbyVolunteers.forEach(vol => {
+      const isEscort = escortVolunteer && escortVolunteer.id === vol.id;
+      const volMarkerHtml = `<div style="
+        background-color: ${isEscort ? '#a855f7' : '#22c55e'}; 
+        width: 16px; 
+        height: 16px; 
+        border-radius: 50%; 
+        border: 2px solid white;
+        box-shadow: 0 0 8px ${isEscort ? '#a855f7' : '#22c55e'};
+      "></div>`;
+
+      const volIcon = L.divIcon({
+        html: volMarkerHtml,
+        className: 'vol-marker-' + vol.id,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
+
+      const m = L.marker([vol.lat, vol.lng], { icon: volIcon }).addTo(map)
+        .bindPopup(`<b>${vol.name}</b><br/>📱 ${vol.phone}<br/>📍 Distance: ${vol.distance}m`);
+      
+      volMarkersRef.current[vol.id] = m;
+      if (isEscort) {
+        escortMarkerRef.current = m;
+      }
+    });
+  };
+
+  const destroyVolunteerMap = () => {
+    if (leafletVolunteerMapInstance.current) {
+      leafletVolunteerMapInstance.current.remove();
+      leafletVolunteerMapInstance.current = null;
+      volunteerUserMarkerRef.current = null;
+      volMarkersRef.current = {};
+      escortMarkerRef.current = null;
+      if (escortPathPolylineRef.current) {
+        escortPathPolylineRef.current.remove();
+        escortPathPolylineRef.current = null;
+      }
     }
   };
 
@@ -653,6 +972,14 @@ export default function Dashboard({ username, onSignOut }) {
             <Users size={20} />
             <span>SOS Contacts ({contacts.length})</span>
           </button>
+
+          <button 
+            style={{ ...styles.navItem, ...(activeTab === 'volunteers' ? styles.navActive : {}) }}
+            onClick={() => setActiveTab('volunteers')}
+          >
+            <UserCheck size={20} />
+            <span>Volunteers Around</span>
+          </button>
         </nav>
 
         {/* Continuous background listener indicator */}
@@ -686,8 +1013,9 @@ export default function Dashboard({ username, onSignOut }) {
         {/* AANCHAL Acronym compact info in sidebar */}
         <AcronymInfo compact={true} />
 
-        <button onClick={onSignOut} style={styles.signOutBtn}>
-          Exit Ecosystem
+        <button onClick={onSignOut} style={{ ...styles.signOutBtn, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%' }}>
+          <LogOut size={16} />
+          <span>Log Out (Exit)</span>
         </button>
       </div>
 
@@ -1337,6 +1665,160 @@ export default function Dashboard({ username, onSignOut }) {
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Tab 5: VOLUNTEERS */}
+        {activeTab === 'volunteers' && (
+          <div className="animate-slideup" style={styles.tabContainer}>
+            <div style={styles.gridTwoColumns}>
+              
+              {/* Volunteer Registration & controls */}
+              <div className="glass-container" style={styles.cardHealth}>
+                <h3 style={styles.cardTitle}>🤝 Guardian Volunteer Circle</h3>
+                <p style={styles.cardDesc}>
+                  Register as a local volunteer to support women in distress around you, or request a walk-along escort if walking alone late at night.
+                </p>
+
+                {/* Volunteer Status Toggle */}
+                <div style={{
+                  ...styles.emergencyStatusPanel,
+                  borderColor: isRegisteredVolunteer ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.05)'
+                }}>
+                  <div style={styles.statusLabel}>Your Volunteer Status:</div>
+                  <div style={{
+                    ...styles.statusValue,
+                    color: isRegisteredVolunteer ? '#22c55e' : '#64748b',
+                    fontSize: '1.1rem'
+                  }}>
+                    {isRegisteredVolunteer ? '🟢 ACTIVE LOCAL GUARDIAN' : '⚪ NOT REGISTERED (Receiver Only)'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                  <button 
+                    onClick={() => {
+                      setIsRegisteredVolunteer(!isRegisteredVolunteer);
+                      addLog(!isRegisteredVolunteer 
+                        ? "🤝 You are now registered as an Active Safety Volunteer! Thank you."
+                        : "🤝 You opted out of the Volunteer responder program." 
+                      );
+                    }}
+                    className={isRegisteredVolunteer ? "btn-neon-danger" : "btn-neon-cyan"}
+                    style={{ flex: 1 }}
+                  >
+                    {isRegisteredVolunteer ? "De-register as Volunteer" : "Register as Safety Volunteer"}
+                  </button>
+                </div>
+
+                {/* Real-time Tracking Controls */}
+                <div style={styles.encryptBlock} className="glass-card" style={{ marginTop: '20px', padding: '16px', borderRadius: '12px' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '10px', color: '#06b6d4' }}>📡 Real-Time GPS Tracking</h4>
+                  <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '16px', lineHeight: 1.4 }}>
+                    Turn on live satellite tracking. If you are demoing on a computer, use "Simulate Walking" to see your coordinates pan and trace location in real-time.
+                  </p>
+
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button 
+                      onClick={startRealTimeTracking} 
+                      className={watchId ? "btn-neon-purple" : "btn-neon-cyan"}
+                      style={{ padding: '8px 16px', fontSize: '0.82rem', borderRadius: '8px', cursor: 'pointer', border: 'none', fontWeight: 'bold' }}
+                    >
+                      {watchId ? "Stop Live GPS Watch" : "Start Live GPS Watch"}
+                    </button>
+                    <button 
+                      onClick={startWalkingSimulation} 
+                      className={isWalking ? "btn-neon-danger" : "btn-neon-purple"}
+                      style={{ padding: '8px 16px', fontSize: '0.82rem', borderRadius: '8px', cursor: 'pointer', border: 'none', fontWeight: 'bold' }}
+                    >
+                      {isWalking ? "Stop Walking Simulation" : "Simulate Walking"}
+                    </button>
+                  </div>
+
+                  <div style={{ ...styles.gpsCoords, marginTop: '12px', fontSize: '0.85rem' }}>
+                    {gpsLocation ? (
+                      <span>Current GPS: Lat {gpsLocation.lat.toFixed(6)} | Lng {gpsLocation.lng.toFixed(6)}</span>
+                    ) : (
+                      <span>GPS State: Idle (Press start or walk to lock location)</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Request Escort controls */}
+                <div style={styles.encryptBlock} className="glass-card" style={{ marginTop: '20px', border: '1px solid rgba(168,85,247,0.3)', padding: '16px', borderRadius: '12px' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '10px', color: '#a855f7' }}>🛡️ Request Escort Dispatch</h4>
+                  <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '16px', lineHeight: 1.4 }}>
+                    Sends a beacon to nearest verified guardians. They will navigate to your live coordinate in real-time.
+                  </p>
+
+                  {volunteerRequestStatus === 'idle' && (
+                    <button onClick={requestVolunteerEscort} className="btn-neon-purple" style={{ width: '100%', padding: '12px', border: 'none', cursor: 'pointer', borderRadius: '8px', fontWeight: 'bold' }}>
+                      Request Volunteer Escort Walk
+                    </button>
+                  )}
+                  {volunteerRequestStatus === 'searching' && (
+                    <div style={{ color: '#06b6d4', fontWeight: 'bold', animation: 'pulse 1.5s infinite', textAlign: 'center', padding: '10px' }}>
+                      🔍 Contacting nearest safety nodes...
+                    </div>
+                  )}
+                  {volunteerRequestStatus === 'connected' && escortVolunteer && (
+                    <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid #22c55e', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                      <div style={{ color: '#22c55e', fontWeight: 'bold' }}>🏃 Volunteer Dispatch En-Route!</div>
+                      <div style={{ color: '#fff', fontSize: '0.88rem', marginTop: '6px', lineHeight: 1.4 }}>
+                        <b>{escortVolunteer.name}</b> is heading to your coordinates.<br/>
+                        Contact: <b>{escortVolunteer.phone}</b><br/>
+                        Current distance: <span style={{ color: '#06b6d4', fontWeight: 'bold' }}>{escortVolunteer.distance}m</span>
+                      </div>
+                    </div>
+                  )}
+                  {volunteerRequestStatus === 'arrived' && escortVolunteer && (
+                    <div style={{ background: 'rgba(6,182,212,0.1)', border: '1px solid #06b6d4', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                      <div style={{ color: '#06b6d4', fontWeight: 'bold' }}>💚 Guardian Arrived!</div>
+                      <div style={{ color: '#fff', fontSize: '0.88rem', marginTop: '6px', lineHeight: 1.4 }}>
+                        <b>{escortVolunteer.name}</b> has arrived safely at your location.
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setVolunteerRequestStatus('idle');
+                          setEscortVolunteer(null);
+                        }} 
+                        className="btn-neon-cyan" 
+                        style={{ marginTop: '10px', padding: '6px 12px', fontSize: '0.8rem', border: 'none', cursor: 'pointer', borderRadius: '6px', fontWeight: 'bold' }}
+                      >
+                        Finish Escort
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Live Map of volunteers */}
+              <div className="glass-container" style={styles.cardHealth}>
+                <h3 style={styles.cardTitle}>Live Rescue Tracking Map</h3>
+                <p style={styles.cardDesc}>
+                  Real-time visualization of your position (Blue node) and active emergency volunteers (Green nodes) walking around you.
+                </p>
+
+                {/* Leaflet map node for volunteers */}
+                <div style={styles.mapWrapperBox}>
+                  <div ref={volunteerMapRef} style={{ width: '100%', height: '100%' }}></div>
+                </div>
+
+                {/* Legend */}
+                <div style={styles.mapLegend} style={{ marginTop: '12px', justifyContent: 'center' }}>
+                  <div style={styles.legendItem}>
+                    <span style={{ ...styles.legendDot, backgroundColor: '#3b82f6', boxShadow: '0 0 6px #3b82f6' }}></span>
+                    <span>You (Live GPS)</span>
+                  </div>
+                  <div style={styles.legendItem}>
+                    <span style={{ ...styles.legendDot, backgroundColor: '#22c55e', boxShadow: '0 0 6px #22c55e' }}></span>
+                    <span>Active Volunteers</span>
+                  </div>
                 </div>
               </div>
 
