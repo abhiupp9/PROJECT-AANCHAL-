@@ -86,9 +86,9 @@ const safeCorridors = {
   ]
 };
 
-// User authentication storage
+// User authentication storage (in-memory fallback if Supabase unavailable)
 let registeredUsers = [
-  { username: 'admin', phone: '9876543210', password: 'password' }
+  { username: 'admin', phone: '9876543210', password: '1234' }
 ];
 
 // User Registration Endpoint
@@ -708,6 +708,41 @@ app.post('/api/upload-recording', async (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 AANCHAL secure backend listening on port ${PORT}`);
+// ─── Startup: seed admin user & test Supabase connection ────────────────────
+async function seedAdminUser() {
+  try {
+    // Test connection first
+    const { error: pingError } = await supabase.from('users').select('id').limit(1);
+    if (pingError) {
+      console.warn('⚠️  Supabase ping failed:', pingError.message);
+      console.warn('   Running in LOCAL MEMORY MODE — data will reset on restart.\n');
+      return;
+    }
+
+    console.log('✅ Supabase connected successfully!');
+
+    // Upsert admin user (insert if not exists, skip if already there)
+    const { error: seedError } = await supabase
+      .from('users')
+      .upsert(
+        { username: 'admin', phone: '9876543210', password: '1234' },
+        { onConflict: 'username', ignoreDuplicates: true }
+      );
+
+    if (seedError) {
+      console.warn('⚠️  Could not seed admin user:', seedError.message);
+    } else {
+      console.log('👤 Default admin account ready — username: admin | password: 1234');
+    }
+  } catch (err) {
+    console.warn('⚠️  Supabase startup check failed:', err.message);
+    console.warn('   Running in LOCAL MEMORY MODE.\n');
+  }
+}
+
+app.listen(PORT, async () => {
+  console.log(`\n🚀 AANCHAL secure backend listening on port ${PORT}`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  await seedAdminUser();
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 });

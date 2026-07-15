@@ -49,7 +49,7 @@ VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO public.users (username, phone, password)
-VALUES ('admin', '9876543210', 'password')
+VALUES ('admin', '9876543210', '1234')
 ON CONFLICT DO NOTHING;
 
 
