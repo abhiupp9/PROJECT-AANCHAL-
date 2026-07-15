@@ -940,6 +940,9 @@ export default function Dashboard({ username, onSignOut }) {
           </div>
         </div>
 
+        {/* AANCHAL Acronym compact info in sidebar - moved to top */}
+        <AcronymInfo compact={true} />
+
         <nav style={styles.navMenu}>
           <button 
             style={{ ...styles.navItem, ...(activeTab === 'help' ? styles.navActive : {}) }}
@@ -1010,18 +1013,43 @@ export default function Dashboard({ username, onSignOut }) {
           </button>
         </div>
 
-        {/* AANCHAL Acronym compact info in sidebar */}
-        <AcronymInfo compact={true} />
-
         <button onClick={onSignOut} style={{ ...styles.signOutBtn, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%' }}>
           <LogOut size={16} />
           <span>Log Out (Exit)</span>
         </button>
       </div>
 
-      {/* Main dashboard content container */}
+       {/* Main dashboard content container */}
       <main style={styles.mainContent}>
         
+        {/* Top Header Bar displaying AANCHAL full name */}
+        <header style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px 24px',
+          background: 'rgba(10, 12, 22, 0.4)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+          borderRadius: '16px',
+          marginBottom: '24px',
+          boxShadow: '0 4px 30px rgba(0, 0, 0, 0.2)',
+          backdropFilter: 'blur(10px)',
+        }}>
+          <div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#fff', letterSpacing: '0.5px', margin: 0 }}>
+              AANCHAL: Women's Safety & Health Ecosystem
+            </h1>
+            <p style={{ fontSize: '0.8rem', color: '#06b6d4', fontWeight: 600, margin: '2px 0 0 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              आँचल • AI Safety & Health Shield
+            </p>
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', padding: '6px 12px', borderRadius: '10px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
+            <span style={{ fontSize: '0.78rem', color: '#22c55e', fontWeight: 'bold' }}>SECURE LINK ACTIVE</span>
+          </div>
+        </header>
+
         {/* Tab 1: HELP (Instant Assistance Shield) */}
         {activeTab === 'help' && (
           <div className="animate-slideup" style={styles.tabContainer}>
