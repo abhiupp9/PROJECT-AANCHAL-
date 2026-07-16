@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 
 dotenv.config();
 
@@ -723,6 +724,23 @@ app.post('/api/upload-recording', async (req, res) => {
     success: true,
     message: 'Muffled scream audio feed and coordinates uploaded and broadcasted successfully',
     streamId: `stream-${Date.now()}`
+  });
+});
+
+// Serve static files from the React frontend build
+const clientDistPath = path.join(__dirname, '../client/dist');
+app.use(express.static(clientDistPath));
+
+// Fallback to index.html for React SPA (ignoring API routes)
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
+    if (err) {
+      // In development or if client not built, fallback to API status message
+      res.status(200).send('AANCHAL Secure API Server is running. Frontend build not found.');
+    }
   });
 });
 

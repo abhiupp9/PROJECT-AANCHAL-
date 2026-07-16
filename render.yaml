@@ -1,11 +1,27 @@
+# Render Blueprint Specification for Project AANCHAL (आँचल)
+# -------------------------------------------------------------
+# You can deploy this project on Render in one of two ways.
+# 
+# OPTION A: Unified Service (Backend serves Frontend) [ACTIVE BY DEFAULT]
+# - Simplest setup, zero configuration.
+# - Deploys a single Free Tier web service.
+# - Automatically handles CORS and API routing via relative paths.
+#
+# OPTION B: Separate Services (Backend + Frontend Static Site) [COMMENTED BELOW]
+# - Frontend runs on a CDN; backend runs as a separate API.
+# - Requires configuring VITE_API_URL in the frontend env settings.
+# -------------------------------------------------------------
+
 services:
-  # AANCHAL Backend Service (Node.js)
+  # =========================================================
+  # OPTION A: Unified Service (Backend + Frontend)
+  # =========================================================
   - type: web
-    name: aanchal-backend
+    name: aanchal-app
     env: node
     plan: free
-    rootDir: server
-    buildCommand: npm install
+    # We do NOT set rootDir so Render runs commands from the repository root
+    buildCommand: npm run build
     startCommand: npm start
     envVars:
       - key: PORT
@@ -14,3 +30,36 @@ services:
         sync: false # Set this in the Render dashboard
       - key: SUPABASE_KEY
         sync: false # Set this in the Render dashboard
+
+  # =========================================================
+  # OPTION B: Separate Services (Comment out Option A above and uncomment this block to use)
+  # =========================================================
+  # # 1. Backend API Service
+  # - type: web
+  #   name: aanchal-backend
+  #   env: node
+  #   plan: free
+  #   rootDir: server
+  #   buildCommand: npm install
+  #   startCommand: npm start
+  #   envVars:
+  #     - key: PORT
+  #       value: 5000
+  #     - key: SUPABASE_URL
+  #       sync: false
+  #     - key: SUPABASE_KEY
+  #       sync: false
+  #
+  # # 2. Frontend Static Site
+  # - type: web
+  #   name: aanchal-frontend
+  #   runtime: static
+  #   plan: free
+  #   rootDir: client
+  #   buildCommand: npm install && npm run build
+  #   staticPublishPath: ./dist
+  #   envVars:
+  #     - key: VITE_API_URL
+  #       sync: false # Set to your deployed backend URL, e.g. https://aanchal-backend.onrender.com
+  #     - key: VITE_BASE_PATH
+  #       value: /

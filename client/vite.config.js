@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
 
-  // Base path for GitHub Pages deployment
-  base: '/PROJECT-AANCHAL-/',
+  // Base path for deployment (e.g. '/' for Render, '/PROJECT-AANCHAL-/' for GitHub Pages)
+  base: process.env.VITE_BASE_PATH || '/',
 
   server: {
     // Dev proxy: forwards /api/* requests to backend on port 5000
