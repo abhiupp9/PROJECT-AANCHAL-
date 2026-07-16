@@ -4,6 +4,7 @@
   "description": "<div align=\"center\">",
   "main": "server/server.js",
   "scripts": {
+    "postinstall": "npm install --prefix client && npm run build --prefix client && npm install --prefix server",
     "build": "npm install --prefix client && npm run build --prefix client && npm install --prefix server",
     "start": "node server/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
